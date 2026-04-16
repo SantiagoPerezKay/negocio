@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Código
 COPY . .
 
-EXPOSE 8000
+EXPOSE 80
 
-# Producción: sin --reload
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Usamos el puerto 80 por defecto, ya que EasyPanel enruta tráfico web al puerto 80
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
