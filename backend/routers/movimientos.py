@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, Date
 from sqlalchemy.orm import selectinload
 from database import get_db
 from models.venta import Venta, VentaDetalle
@@ -8,6 +8,7 @@ from models.caja import GastoCaja
 from models.proveedor import Compra, Proveedor
 from models.cliente import Pago as PagoCliente, Cliente
 from typing import Optional
+from datetime import datetime
 
 router = APIRouter(prefix="/api/movimientos", tags=["movimientos"])
 
@@ -20,11 +21,18 @@ async def listar_movimientos(
     db: AsyncSession = Depends(get_db),
 ):
     movimientos = []
+    
+    d_fecha = None
+    if fecha:
+        try:
+            d_fecha = datetime.strptime(fecha, "%Y-%m-%d").date()
+        except Exception:
+            pass
 
     # --- Ventas ---
     q_ventas = select(Venta).options(selectinload(Venta.detalles))
-    if fecha:
-        q_ventas = q_ventas.where(func.date(Venta.fecha) == fecha)
+    if d_fecha:
+        q_ventas = q_ventas.where(cast(Venta.fecha, Date) == d_fecha)
     else:
         if fecha_desde:
             q_ventas = q_ventas.where(Venta.fecha >= fecha_desde)
@@ -55,8 +63,8 @@ async def listar_movimientos(
 
     # --- Gastos ---
     q_gastos = select(GastoCaja)
-    if fecha:
-        q_gastos = q_gastos.where(func.date(GastoCaja.fecha) == fecha)
+    if d_fecha:
+        q_gastos = q_gastos.where(cast(GastoCaja.fecha, Date) == d_fecha)
     else:
         if fecha_desde:
             q_gastos = q_gastos.where(GastoCaja.fecha >= fecha_desde)
@@ -76,8 +84,8 @@ async def listar_movimientos(
 
     # --- Compras ---
     q_compras = select(Compra).options(selectinload(Compra.proveedor))
-    if fecha:
-        q_compras = q_compras.where(func.date(Compra.fecha) == fecha)
+    if d_fecha:
+        q_compras = q_compras.where(cast(Compra.fecha, Date) == d_fecha)
     else:
         if fecha_desde:
             q_compras = q_compras.where(Compra.fecha >= fecha_desde)
@@ -98,8 +106,8 @@ async def listar_movimientos(
 
     # --- Pagos de clientes ---
     q_pagos = select(PagoCliente).options(selectinload(PagoCliente.cliente))
-    if fecha:
-        q_pagos = q_pagos.where(func.date(PagoCliente.fecha) == fecha)
+    if d_fecha:
+        q_pagos = q_pagos.where(cast(PagoCliente.fecha, Date) == d_fecha)
     else:
         if fecha_desde:
             q_pagos = q_pagos.where(PagoCliente.fecha >= fecha_desde)
