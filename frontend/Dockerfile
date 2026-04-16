@@ -14,19 +14,14 @@ ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build
 
-# ── Etapa final: nginx sirve el build ──────────────────────────────────────────
+# Instalar nginx clásico
 FROM nginx:alpine
-
-# Instalar gettext para que envsubst esté disponible
-RUN apk add --no-cache gettext
 
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Plantilla de nginx: BACKEND_URL se reemplaza en runtime
-COPY nginx-frontend.conf /etc/nginx/templates/default.conf.template
+# Copiar la config explícita de nginx
+COPY nginx-frontend.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
-# Al iniciar: envsubst reemplaza ${BACKEND_URL} y lanza nginx
-CMD ["/bin/sh", "-c", \
-  "envsubst '${BACKEND_URL}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+CMD ["nginx", "-g", "daemon off;"]
