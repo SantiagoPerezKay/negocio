@@ -3,7 +3,7 @@ import { cajaAPI, ventasAPI, stockAPI, clientesAPI } from "../api";
 import { Plus, Trash2, XCircle, CheckCircle, Loader, DollarSign, PlusCircle } from "lucide-react";
 import Modal from "../components/Modal";
 
-const METODOS = ["efectivo", "transferencia", "tarjeta", "seña", "fiado"];
+const METODOS = ["efectivo", "transferencia", "tarjeta"];
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n || 0);
@@ -69,7 +69,7 @@ export default function Caja() {
   const suggestionsRef = useRef(null);
   const inputRef = useRef(null);
   const cerrarNuevoProducto = useCallback(() => setShowNuevoProducto(false), []);
-  const [metodos, setMetodos] = useState({ efectivo: "", transferencia: "", tarjeta: "", seña: "", fiado: "" });
+  const [metodos, setMetodos] = useState({ efectivo: "", transferencia: "", tarjeta: "" });
   const [clienteId, setClienteId] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -199,21 +199,35 @@ export default function Caja() {
   };
 
   const guardarVenta = async () => {
-    if (detalles.length === 0 && totalMetodos === 0) return;
+    const totalEfc = parseFloat(metodos.efectivo) || 0;
+    const totalTrans = parseFloat(metodos.transferencia) || 0;
+    const totalTarj = parseFloat(metodos.tarjeta) || 0;
+    const pagado = totalEfc + totalTrans + totalTarj;
+    
+    // El fiado es el monto del subtotal no cubierto por el monto pagado
+    const fiadoFinal = totalDetalles > 0 ? Math.max(0, totalDetalles - pagado) : 0;
+    
+    if (detalles.length === 0 && pagado === 0) return;
+
+    if (fiadoFinal > 0 && !clienteId) {
+      alert(`Falta cubrir ${fmt(fiadoFinal)} del total. Debe seleccionar un cliente para generar la deuda/seña.`);
+      return;
+    }
+
     setSaving(true);
     try {
       await ventasAPI.crear({
         detalles: detalles.map(({ producto_id, descripcion, cantidad, precio_unitario }) => ({ producto_id, descripcion, cantidad, precio_unitario })),
-        efectivo: parseFloat(metodos.efectivo) || 0,
-        transferencia: parseFloat(metodos.transferencia) || 0,
-        tarjeta: parseFloat(metodos.tarjeta) || 0,
-        seña: parseFloat(metodos.seña) || 0,
-        fiado: parseFloat(metodos.fiado) || 0,
+        efectivo: totalEfc,
+        transferencia: totalTrans,
+        tarjeta: totalTarj,
+        seña: 0, // Ya no se usa como moneda independiente, se guarda en efectivo/tarjeta/transf
+        fiado: fiadoFinal,
         cliente_id: clienteId ? parseInt(clienteId) : null,
         caja_id: caja.id,
       });
       setDetalles([]);
-      setMetodos({ efectivo: "", transferencia: "", tarjeta: "", seña: "", fiado: "" });
+      setMetodos({ efectivo: "", transferencia: "", tarjeta: "" });
       setClienteId("");
       await cargarVentas(caja.id);
       await cargarResumen(caja.id);
@@ -304,10 +318,10 @@ export default function Caja() {
             <div className="table-wrap hide-mobile">
               <table>
                 <thead>
-                  <tr><th>#</th><th>Hora</th><th>Detalle</th><th>Efectivo</th><th>Transfer.</th><th>Tarjeta</th><th>Seña</th><th>Fiado</th><th>Total</th><th></th></tr>
+                  <tr><th>#</th><th>Hora</th><th>Detalle</th><th>Efectivo</th><th>Transfer.</th><th>Tarjeta</th><th>Fiado</th><th>Total</th><th></th></tr>
                 </thead>
                 <tbody>
-                  {ventas.length === 0 && <tr><td colSpan={10} className="text-center text-muted" style={{ padding: 32 }}>Aún no hay ventas registradas hoy</td></tr>}
+                  {ventas.length === 0 && <tr><td colSpan={9} className="text-center text-muted" style={{ padding: 32 }}>Aún no hay ventas registradas hoy</td></tr>}
                   {ventas.map((v) => (
                     <tr key={v.id} style={{ opacity: v.anulada ? 0.4 : 1 }}>
                       <td className="text-muted">{v.id}</td>
@@ -319,7 +333,6 @@ export default function Caja() {
                       <td className="text-success">{v.efectivo > 0 ? fmt(v.efectivo) : ""}</td>
                       <td style={{ color: "var(--info)" }}>{v.transferencia > 0 ? fmt(v.transferencia) : ""}</td>
                       <td style={{ color: "var(--primary)" }}>{v.tarjeta > 0 ? fmt(v.tarjeta) : ""}</td>
-                      <td className="text-warning">{v.seña > 0 ? fmt(v.seña) : ""}</td>
                       <td className="text-danger">{v.fiado > 0 ? fmt(v.fiado) : ""}</td>
                       <td className="money font-bold">{fmt(v.total)}</td>
                       <td>{!v.anulada && <button className="btn btn-ghost btn-sm" onClick={() => anularVenta(v.id)} title="Anular"><XCircle size={14} /></button>}</td>
@@ -456,15 +469,22 @@ export default function Caja() {
                     <label className={`form-label payment-pill ${m} ${metodos[m] ? "active" : ""}`} style={{ marginBottom: 4, borderRadius: 6, padding: "4px 8px", display: "flex", justifyContent: "space-between" }}>
                       {m.charAt(0).toUpperCase() + m.slice(1)}
                     </label>
-                    <input type="number" className="form-input" placeholder="$" value={metodos[m]} onChange={(e) => setMetodos((p) => ({ ...p, [m]: e.target.value }))} style={{ fontSize: "0.9rem" }} />
+                    <input type="number" className="form-input" placeholder="$" value={metodos[m] || ""} onChange={(e) => setMetodos((p) => ({ ...p, [m]: e.target.value }))} style={{ fontSize: "0.9rem" }} />
                   </div>
                 ))}
+                
+                <div className="form-group">
+                  <label className="form-label payment-pill text-danger active" style={{ marginBottom: 4, borderRadius: 6, padding: "4px 8px", display: "flex", justifyContent: "space-between", background: "rgba(239, 68, 68, 0.1)" }}>
+                    Falta (Seña/Fiado)
+                  </label>
+                  <input type="text" className="form-input" readOnly value={fmt(totalDetalles > 0 ? Math.max(0, totalDetalles - (parseFloat(metodos.efectivo || 0) + parseFloat(metodos.transferencia || 0) + parseFloat(metodos.tarjeta || 0))) : 0)} style={{ fontSize: "0.9rem", color: "var(--danger)", background: "var(--bg-card)", fontWeight: 700 }} />
+                </div>
               </div>
             </div>
 
-            {metodos.fiado > 0 && (
+            {totalDetalles > 0 && Math.max(0, totalDetalles - (parseFloat(metodos.efectivo || 0) + parseFloat(metodos.transferencia || 0) + parseFloat(metodos.tarjeta || 0))) > 0 && (
               <div className="form-group mb-4">
-                <label className="form-label text-danger">Cliente (requerido para fiado)</label>
+                <label className="form-label text-danger">Cliente (requerido al faltar cubrir total)</label>
                 <select className="form-select" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
                   <option value="">Seleccionar cliente...</option>
                   {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre} {c.deuda_total > 0 ? `(debe ${fmt(c.deuda_total)})` : ""}</option>)}

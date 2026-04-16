@@ -4,7 +4,7 @@ from sqlalchemy import select, func, cast, Date
 from sqlalchemy.orm import selectinload
 from database import get_db
 from models.venta import Venta, VentaDetalle
-from models.caja import GastoCaja
+from models.caja import GastoCaja, CajaApertura
 from models.proveedor import Compra, Proveedor
 from models.cliente import Pago as PagoCliente, Cliente
 from typing import Optional
@@ -125,6 +125,36 @@ async def listar_movimientos(
             "monto": float(p.monto),
             "metodo": p.metodo,
         })
+
+    # --- Caja (Aperturas y Cierres) ---
+    q_caja = select(CajaApertura)
+    if d_fecha:
+        q_caja = q_caja.where(cast(CajaApertura.fecha_apertura, Date) == d_fecha)
+    else:
+        if fecha_desde:
+            q_caja = q_caja.where(CajaApertura.fecha_apertura >= fecha_desde)
+        if fecha_hasta:
+            q_caja = q_caja.where(CajaApertura.fecha_apertura <= fecha_hasta)
+
+    result_caja = await db.execute(q_caja)
+    for c in result_caja.scalars().all():
+        movimientos.append({
+            "id": f"ap_{c.id}",
+            "tipo": "apertura_caja",
+            "fecha": c.fecha_apertura.isoformat() if c.fecha_apertura else None,
+            "descripcion": "Apertura de caja",
+            "monto": float(c.monto_inicial),
+            "metodo": "efectivo",
+        })
+        if c.fecha_cierre:
+            movimientos.append({
+                "id": f"ci_{c.id}",
+                "tipo": "cierre_caja",
+                "fecha": c.fecha_cierre.isoformat(),
+                "descripcion": "Cierre de caja",
+                "monto": float(c.monto_cierre_real or 0),
+                "metodo": "efectivo",
+            })
 
     # Sort all by date descending
     movimientos.sort(key=lambda m: m["fecha"] or "", reverse=True)

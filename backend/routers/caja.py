@@ -86,7 +86,6 @@ async def cerrar_caja(caja_id: int, data: CierreIn, db: AsyncSession = Depends(g
     caja.total_efectivo = row.efectivo
     caja.total_transferencia = row.transferencia
     caja.total_tarjeta = row.tarjeta
-    caja.total_seña = row.seña
     caja.total_fiado = row.fiado
     caja.total_gastos = total_gastos
     caja.cerrada = True
@@ -139,7 +138,6 @@ async def resumen_caja(caja_id: int, db: AsyncSession = Depends(get_db)):
             "efectivo": float(v.efectivo),
             "transferencia": float(v.transferencia),
             "tarjeta": float(v.tarjeta),
-            "seña": float(v.seña),
             "fiado": float(v.fiado),
         },
         "gastos": float(total_gastos),

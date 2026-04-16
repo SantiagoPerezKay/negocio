@@ -9,8 +9,10 @@ const TIPO_CONFIG = {
   venta:            { color: "var(--success)", icon: <ArrowUpCircle size={14} />, label: "Venta" },
   "venta (anulada)": { color: "var(--text3)",  icon: <ArrowUpCircle size={14} />, label: "Venta anulada" },
   gasto:            { color: "var(--danger)",  icon: <ArrowDownCircle size={14} />, label: "Gasto" },
-  compra:           { color: "var(--warning)", icon: <ArrowDownCircle size={14} />, label: "Compra" },
+  compra:           { color: "var(--warning)", icon: <ArrowDownCircle size={14} />, label: "Compra a proveedor" },
   pago_cliente:     { color: "var(--info)",    icon: <ArrowUpCircle size={14} />, label: "Cobro cliente" },
+  apertura_caja:    { color: "var(--primary)", icon: <ArrowUpCircle size={14} />, label: "Apertura de caja" },
+  cierre_caja:      { color: "var(--text1)",   icon: <ArrowDownCircle size={14} />, label: "Cierre de caja" },
 };
 
 const hoy = () => new Date().toISOString().slice(0, 10);
