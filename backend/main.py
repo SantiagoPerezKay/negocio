@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import create_tables
-from routers import ventas, caja, stock, clientes, proveedores, estadisticas
+from routers import ventas, caja, stock, clientes, proveedores, estadisticas, movimientos
 
 app = FastAPI(
     title="Sistema Fotocopiadora/Kiosco",
@@ -23,6 +23,7 @@ app.include_router(stock.router)
 app.include_router(clientes.router)
 app.include_router(proveedores.router)
 app.include_router(estadisticas.router)
+app.include_router(movimientos.router)
 
 
 @app.on_event("startup")

@@ -54,8 +54,14 @@ export const proveedoresAPI = {
   crear: (data) => api.post("/proveedores/", data),
   actualizar: (id, data) => api.put(`/proveedores/${id}`, data),
   eliminar: (id) => api.delete(`/proveedores/${id}`),
+  registrarPago: (id, data) => api.post(`/proveedores/${id}/pago`, data),
   registrarCompra: (data) => api.post("/proveedores/compras", data),
   listarCompras: (params) => api.get("/proveedores/compras", { params }),
+};
+
+// ── Movimientos ───────────────────────────────────────────────────────────────
+export const movimientosAPI = {
+  listar: (params) => api.get("/movimientos/", { params }),
 };
 
 // ── Estadísticas ──────────────────────────────────────────────────────────────

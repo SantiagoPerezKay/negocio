@@ -2,13 +2,14 @@ import { useState, useEffect, createContext, useContext } from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import {
   Package, Users, Truck, BarChart2, DollarSign, AlertTriangle,
-  Sun, Moon, Menu, X
+  Sun, Moon, Menu, X, List
 } from "lucide-react";
 import Caja from "./pages/Caja";
 import Stock from "./pages/Stock";
 import Clientes from "./pages/Clientes";
 import Proveedores from "./pages/Proveedores";
 import Estadisticas from "./pages/Estadisticas";
+import Movimientos from "./pages/Movimientos";
 import "./index.css";
 
 // ── Theme context ────────────────────────────────────────
@@ -38,6 +39,7 @@ const navItems = [
   { to: "/stock",       icon: <Package />,     label: "Stock"           },
   { to: "/clientes",    icon: <Users />,       label: "Clientes / Fiado"},
   { to: "/proveedores", icon: <Truck />,       label: "Proveedores"     },
+  { to: "/movimientos", icon: <List />,         label: "Movimientos"     },
   { to: "/estadisticas",icon: <BarChart2 />,   label: "Estadísticas"    },
 ];
 
@@ -123,6 +125,7 @@ function AppContent() {
           <Route path="/stock"        element={<Stock />}        />
           <Route path="/clientes"     element={<Clientes />}     />
           <Route path="/proveedores"  element={<Proveedores />}  />
+          <Route path="/movimientos"  element={<Movimientos />}  />
           <Route path="/estadisticas" element={<Estadisticas />} />
         </Routes>
       </main>

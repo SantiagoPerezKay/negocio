@@ -510,6 +510,46 @@ tr:hover td { background: var(--bg3); }
   border-bottom: 1px solid var(--border);
 }
 
+/* ── Autocomplete ──────────────────────────────────────── */
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  z-index: 50;
+  margin-top: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  text-align: left;
+}
+.autocomplete-item:last-child { border-bottom: none; }
+.autocomplete-item:hover { background: var(--bg3); }
+.autocomplete-create {
+  color: var(--primary);
+  font-weight: 500;
+  gap: 6px;
+  justify-content: flex-start;
+}
+.autocomplete-create:hover { background: var(--primary-glow); }
+
 /* Divider */
 .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 

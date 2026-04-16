@@ -68,11 +68,47 @@ async def eliminar_proveedor(proveedor_id: int, db: AsyncSession = Depends(get_d
     p = result.scalar_one_or_none()
     if not p:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
-    if p.deuda_total > 0:
-        raise HTTPException(status_code=400, detail="No se puede eliminar un proveedor con deuda pendiente")
     await db.delete(p)
     await db.commit()
     return {"ok": True}
+
+
+class PagoProveedorIn(BaseModel):
+    monto: Decimal
+    notas: Optional[str] = None
+
+
+@router.post("/{proveedor_id}/pago")
+async def pagar_proveedor(proveedor_id: int, data: PagoProveedorIn, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Proveedor).where(Proveedor.id == proveedor_id))
+    prov = result.scalar_one_or_none()
+    if not prov:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+    # Subtract from proveedor debt
+    nueva_deuda = max(Decimal("0"), prov.deuda_total - data.monto)
+    prov.deuda_total = nueva_deuda
+
+    # Apply payment to oldest compras with saldo > 0
+    compras_result = await db.execute(
+        select(Compra)
+        .where(Compra.proveedor_id == proveedor_id, Compra.saldo > 0)
+        .order_by(Compra.fecha.asc())
+    )
+    compras_pendientes = compras_result.scalars().all()
+
+    restante = data.monto
+    for compra in compras_pendientes:
+        if restante <= 0:
+            break
+        aplicar = min(restante, compra.saldo)
+        compra.pagado = compra.pagado + aplicar
+        compra.saldo = compra.saldo - aplicar
+        restante -= aplicar
+
+    await db.commit()
+    await db.refresh(prov)
+    return {"ok": True, "deuda_restante": float(prov.deuda_total)}
 
 
 @router.post("/compras")

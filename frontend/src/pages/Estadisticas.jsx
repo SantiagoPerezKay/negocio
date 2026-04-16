@@ -62,14 +62,38 @@ export default function Estadisticas() {
         </div>
       </div>
 
-      {/* Totales */}
+      {/* Balance general */}
+      {resumen && (
+        <div className="card mb-6" style={{ borderLeft: "4px solid var(--primary)", padding: "20px 24px" }}>
+          <h3 style={{ fontWeight: 700, fontSize: "1rem", marginBottom: 16 }}>Balance general</h3>
+          <div className="grid-4">
+            <div className="stat-card card-sm">
+              <div className="stat-label">Total vendido</div>
+              <div className="stat-value money text-success" style={{ fontSize: "1.4rem" }}>{fmt(resumen.facturado)}</div>
+              <div className="stat-sub">{resumen.total_ventas} ventas</div>
+            </div>
+            <div className="stat-card card-sm">
+              <div className="stat-label">Total comprado</div>
+              <div className="stat-value money text-warning" style={{ fontSize: "1.4rem" }}>{fmt(resumen.total_compras)}</div>
+            </div>
+            <div className="stat-card card-sm">
+              <div className="stat-label">Ganancia estimada</div>
+              <div className="stat-value money" style={{ fontSize: "1.4rem", color: resumen.ganancia_estimada >= 0 ? "var(--success)" : "var(--danger)" }}>
+                {fmt(resumen.ganancia_estimada)}
+              </div>
+              <div className="stat-sub">Vendido - Comprado</div>
+            </div>
+            <div className="stat-card card-sm">
+              <div className="stat-label">Deuda proveedores</div>
+              <div className="stat-value money text-warning" style={{ fontSize: "1.4rem" }}>{fmt(resumen.deuda_proveedores_total)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detalle por método */}
       {resumen && (
         <div className="grid-4 mb-6">
-          <div className="stat-card">
-            <div className="stat-label">Total facturado</div>
-            <div className="stat-value money" style={{ color: "var(--success)" }}>{fmt(resumen.facturado)}</div>
-            <div className="stat-sub">{resumen.total_ventas} ventas</div>
-          </div>
           <div className="stat-card">
             <div className="stat-label">Efectivo</div>
             <div className="stat-value money" style={{ fontSize: "1.5rem" }}>{fmt(resumen.por_metodo.efectivo)}</div>
@@ -77,6 +101,10 @@ export default function Estadisticas() {
           <div className="stat-card">
             <div className="stat-label">Transferencia</div>
             <div className="stat-value money" style={{ fontSize: "1.5rem", color: "var(--info)" }}>{fmt(resumen.por_metodo.transferencia)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Tarjeta</div>
+            <div className="stat-value money" style={{ fontSize: "1.5rem", color: "var(--primary)" }}>{fmt(resumen.por_metodo.tarjeta)}</div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Deuda clientes</div>

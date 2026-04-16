@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { cajaAPI, ventasAPI, stockAPI, clientesAPI } from "../api";
-import { Plus, Trash2, XCircle, CheckCircle, Loader, DollarSign } from "lucide-react";
+import { Plus, Trash2, XCircle, CheckCircle, Loader, DollarSign, PlusCircle } from "lucide-react";
 import Modal from "../components/Modal";
 
 const METODOS = ["efectivo", "transferencia", "tarjeta", "seña", "fiado"];
@@ -62,6 +62,13 @@ export default function Caja() {
 
   const [detalleLine, setDetalleLine] = useState("");
   const [detalles, setDetalles] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showNuevoProducto, setShowNuevoProducto] = useState(false);
+  const [nuevoProductoForm, setNuevoProductoForm] = useState({ nombre: "", precio_venta: "" });
+  const suggestionsRef = useRef(null);
+  const inputRef = useRef(null);
+  const cerrarNuevoProducto = useCallback(() => setShowNuevoProducto(false), []);
   const [metodos, setMetodos] = useState({ efectivo: "", transferencia: "", tarjeta: "", seña: "", fiado: "" });
   const [clienteId, setClienteId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -133,6 +140,63 @@ export default function Caja() {
   };
 
   const removeDetalle = (i) => setDetalles((p) => p.filter((_, j) => j !== i));
+
+  // Autocomplete: filter products as user types
+  const handleDetalleLineChange = (val) => {
+    setDetalleLine(val);
+    if (val.trim().length >= 1) {
+      const term = val.toLowerCase().trim();
+      const matches = productos.filter((p) =>
+        p.nombre.toLowerCase().includes(term)
+      ).slice(0, 6);
+      setSuggestions(matches);
+      setShowSuggestions(true);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const selectSuggestion = (prod) => {
+    addDetalleProducto(prod);
+    setDetalleLine("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target) &&
+          inputRef.current && !inputRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const crearProductoRapido = async () => {
+    if (!nuevoProductoForm.nombre.trim() || !nuevoProductoForm.precio_venta) return;
+    setSaving(true);
+    try {
+      const r = await stockAPI.crearProducto({
+        nombre: nuevoProductoForm.nombre.trim(),
+        precio_venta: parseFloat(nuevoProductoForm.precio_venta),
+        precio_costo: 0,
+        stock_actual: 0,
+        stock_minimo: 0,
+        unidad: "unidad",
+      });
+      // Refresh products and add to current sale
+      const prodsR = await stockAPI.productos({ activo: true });
+      setProductos(prodsR.data);
+      const newProd = prodsR.data.find((p) => p.id === r.data.id) || r.data;
+      addDetalleProducto(newProd);
+      setShowNuevoProducto(false);
+      setNuevoProductoForm({ nombre: "", precio_venta: "" });
+    } finally { setSaving(false); }
+  };
 
   const guardarVenta = async () => {
     if (detalles.length === 0 && totalMetodos === 0) return;
@@ -306,16 +370,54 @@ export default function Caja() {
             <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: "1rem" }}>Nueva venta</h3>
 
             <div className="form-group mb-4">
-              <label className="form-label">Escribir ítem (ej: "Fotocopia x5 @50")</label>
-              <div className="flex gap-2">
-                <input className="form-input" placeholder='ej: "Café 1200" o "Foto x10 @50"' value={detalleLine} onChange={(e) => setDetalleLine(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addDetalleLibre()} />
-                <button className="btn btn-ghost btn-sm" onClick={addDetalleLibre}><Plus size={16} /></button>
+              <label className="form-label">Buscar producto o escribir libre (ej: "Foto x10 @50")</label>
+              <div style={{ position: "relative" }}>
+                <div className="flex gap-2">
+                  <input
+                    ref={inputRef}
+                    className="form-input"
+                    placeholder='Buscar producto o escribir libre...'
+                    value={detalleLine}
+                    onChange={(e) => handleDetalleLineChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        if (suggestions.length > 0 && showSuggestions) {
+                          selectSuggestion(suggestions[0]);
+                        } else {
+                          addDetalleLibre();
+                        }
+                      }
+                    }}
+                    onFocus={() => { if (detalleLine.trim().length >= 1 && suggestions.length > 0) setShowSuggestions(true); }}
+                  />
+                  <button className="btn btn-ghost btn-sm" onClick={addDetalleLibre} title="Agregar como texto libre"><Plus size={16} /></button>
+                </div>
+                {showSuggestions && (suggestions.length > 0 || detalleLine.trim().length >= 2) && (
+                  <div ref={suggestionsRef} className="autocomplete-dropdown">
+                    {suggestions.map((p) => (
+                      <button key={p.id} className="autocomplete-item" onClick={() => selectSuggestion(p)}>
+                        <span style={{ fontWeight: 500 }}>{p.nombre}</span>
+                        <span className="money text-success" style={{ fontSize: "0.8rem" }}>{fmt(p.precio_venta)}</span>
+                      </button>
+                    ))}
+                    {detalleLine.trim().length >= 2 && (
+                      <button className="autocomplete-item autocomplete-create" onClick={() => {
+                        setNuevoProductoForm({ nombre: detalleLine.trim(), precio_venta: "" });
+                        setShowNuevoProducto(true);
+                        setShowSuggestions(false);
+                      }}>
+                        <PlusCircle size={14} />
+                        <span>Crear "<b>{detalleLine.trim()}</b>" como nuevo producto</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
             {productos.length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <div className="form-label mb-4">Acceso rápido</div>
+                <div className="form-label mb-4">Acceso rapido</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {productos.slice(0, 8).map((p) => (
                     <button key={p.id} className="btn btn-ghost btn-sm" style={{ fontSize: "0.75rem" }} onClick={() => addDetalleProducto(p)}>
@@ -398,6 +500,29 @@ export default function Caja() {
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={cerrarGasto}>Cancelar</button>
           <button className="btn btn-primary" onClick={guardarGasto}>Guardar gasto</button>
+        </div>
+      </Modal>
+
+      {/* Modal nuevo producto rápido */}
+      <Modal open={showNuevoProducto} onClose={cerrarNuevoProducto} title="Crear producto rapido">
+        <p className="text-muted" style={{ fontSize: "0.85rem", marginBottom: 16 }}>
+          Se creara el producto y se agregara automaticamente a la venta actual.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="form-group">
+            <label className="form-label">Nombre</label>
+            <input className="form-input" value={nuevoProductoForm.nombre} onChange={(e) => setNuevoProductoForm((p) => ({ ...p, nombre: e.target.value }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Precio de venta</label>
+            <input type="number" className="form-input" placeholder="$" value={nuevoProductoForm.precio_venta} onChange={(e) => setNuevoProductoForm((p) => ({ ...p, precio_venta: e.target.value }))} />
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={cerrarNuevoProducto}>Cancelar</button>
+          <button className="btn btn-primary" onClick={crearProductoRapido} disabled={saving}>
+            {saving ? "Creando..." : "Crear y agregar"}
+          </button>
         </div>
       </Modal>
 

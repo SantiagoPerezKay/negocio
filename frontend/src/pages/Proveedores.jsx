@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { proveedoresAPI, stockAPI } from "../api";
-import { Plus, ShoppingBag, Trash2, Edit2 } from "lucide-react";
+import { Plus, ShoppingBag, Trash2, Edit2, DollarSign } from "lucide-react";
 import Modal from "../components/Modal";
 
 const fmt = (n) =>
@@ -16,6 +16,7 @@ export default function Proveedores() {
   const [compraForm, setCompraForm] = useState({ proveedor_id: "", pagado: "0", notas: "", detalles: [] });
   const [detalleLine, setDetalleLine] = useState({ producto_id: "", descripcion: "", cantidad: "1", precio_costo: "" });
   const [saving, setSaving] = useState(false);
+  const [pagoForm, setPagoForm] = useState({ monto: "", notas: "" });
 
   const cerrarModal = useCallback(() => setModal(null), []);
 
@@ -50,13 +51,35 @@ export default function Proveedores() {
   };
 
   const eliminarProveedor = async (p) => {
-    if (!confirm(`¿Eliminar a "${p.nombre}"? Esta acción no se puede deshacer.`)) return;
+    const msg = parseFloat(p.deuda_total) > 0
+      ? `¿Eliminar a "${p.nombre}"? Tiene deuda de ${fmt(p.deuda_total)}. Esta acción no se puede deshacer.`
+      : `¿Eliminar a "${p.nombre}"? Esta acción no se puede deshacer.`;
+    if (!confirm(msg)) return;
     try {
       await proveedoresAPI.eliminar(p.id);
       cargar();
     } catch (e) {
       alert(e.response?.data?.detail || "Error al eliminar");
     }
+  };
+
+  const abrirPago = (p) => {
+    setSelected(p);
+    setPagoForm({ monto: "", notas: "" });
+    setModal("pago");
+  };
+
+  const registrarPago = async () => {
+    if (!pagoForm.monto) return;
+    setSaving(true);
+    try {
+      await proveedoresAPI.registrarPago(selected.id, {
+        monto: parseFloat(pagoForm.monto),
+        notas: pagoForm.notas,
+      });
+      setModal(null);
+      cargar();
+    } finally { setSaving(false); }
   };
 
   const addDetalle = () => {
@@ -131,10 +154,13 @@ export default function Proveedores() {
                 </td>
                 <td>
                   <div className="flex gap-2">
-                    <button className="btn btn-ghost btn-sm" onClick={() => abrirEditar(p)} title="Editar"><Edit2 size={13} /></button>
-                    {parseFloat(p.deuda_total) === 0 && (
-                      <button className="btn btn-danger btn-sm" onClick={() => eliminarProveedor(p)} title="Eliminar"><Trash2 size={13} /></button>
+                    {parseFloat(p.deuda_total) > 0 && (
+                      <button className="btn btn-success btn-sm" onClick={() => abrirPago(p)} title="Registrar pago">
+                        <DollarSign size={13} /> Pagar
+                      </button>
                     )}
+                    <button className="btn btn-ghost btn-sm" onClick={() => abrirEditar(p)} title="Editar"><Edit2 size={13} /></button>
+                    <button className="btn btn-danger btn-sm" onClick={() => eliminarProveedor(p)} title="Eliminar"><Trash2 size={13} /></button>
                   </div>
                 </td>
               </tr>
@@ -157,11 +183,12 @@ export default function Proveedores() {
             {(p.contacto || p.telefono) && (
               <p className="text-muted" style={{ fontSize: "0.8rem", marginBottom: 8 }}>{p.contacto}{p.contacto && p.telefono ? " · " : ""}{p.telefono}</p>
             )}
-            <div className="flex gap-2">
-              <button className="btn btn-ghost btn-sm" onClick={() => abrirEditar(p)}><Edit2 size={13} /> Editar</button>
-              {parseFloat(p.deuda_total) === 0 && (
-                <button className="btn btn-danger btn-sm" onClick={() => eliminarProveedor(p)}><Trash2 size={13} /></button>
+            <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+              {parseFloat(p.deuda_total) > 0 && (
+                <button className="btn btn-success btn-sm" onClick={() => abrirPago(p)}><DollarSign size={13} /> Pagar</button>
               )}
+              <button className="btn btn-ghost btn-sm" onClick={() => abrirEditar(p)}><Edit2 size={13} /> Editar</button>
+              <button className="btn btn-danger btn-sm" onClick={() => eliminarProveedor(p)}><Trash2 size={13} /></button>
             </div>
           </div>
         ))}
@@ -221,6 +248,35 @@ export default function Proveedores() {
             {saving ? "Guardando..." : "Guardar"}
           </button>
         </div>
+      </Modal>
+
+      {/* Modal pago proveedor */}
+      <Modal open={modal === "pago" && !!selected} onClose={cerrarModal} title="Registrar pago a proveedor">
+        {selected && (
+          <>
+            <div style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)", borderRadius: "var(--radius-sm)", padding: "12px 16px", marginBottom: 20 }}>
+              <p style={{ fontSize: "0.875rem", color: "var(--warning)" }}>
+                <b>{selected.nombre}</b> — Deuda: <b>{fmt(selected.deuda_total)}</b>
+              </p>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Monto a pagar</label>
+                <input type="number" className="form-input" style={{ fontSize: "1.2rem" }} placeholder={`Max: ${fmt(selected.deuda_total)}`} value={pagoForm.monto} onChange={(e) => setPagoForm((p) => ({ ...p, monto: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Notas (opcional)</label>
+                <input className="form-input" placeholder="Ej: Pago parcial transferencia" value={pagoForm.notas} onChange={(e) => setPagoForm((p) => ({ ...p, notas: e.target.value }))} />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={cerrarModal}>Cancelar</button>
+              <button className="btn btn-success" onClick={registrarPago} disabled={saving}>
+                {saving ? "Guardando..." : "Confirmar pago"}
+              </button>
+            </div>
+          </>
+        )}
       </Modal>
 
       {/* Modal compra */}

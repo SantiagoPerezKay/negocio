@@ -5,6 +5,7 @@ from database import get_db
 from models.venta import Venta, VentaDetalle
 from models.producto import Producto
 from models.cliente import Cliente
+from models.proveedor import Compra, Proveedor
 from typing import Optional
 
 router = APIRouter(prefix="/api/estadisticas", tags=["estadisticas"])
@@ -40,9 +41,27 @@ async def resumen_general(
     )
     deuda_clientes = deuda_result.scalar()
 
+    # Total compras (with same date filters)
+    q_compras = select(func.coalesce(func.sum(Compra.total), 0))
+    if fecha_desde:
+        q_compras = q_compras.where(Compra.fecha >= fecha_desde)
+    if fecha_hasta:
+        q_compras = q_compras.where(Compra.fecha <= fecha_hasta)
+    compras_result = await db.execute(q_compras)
+    total_compras = compras_result.scalar()
+
+    # Deuda proveedores total
+    deuda_prov_result = await db.execute(
+        select(func.coalesce(func.sum(Proveedor.deuda_total), 0))
+    )
+    deuda_proveedores = deuda_prov_result.scalar()
+
+    facturado_val = float(row.facturado)
+    total_compras_val = float(total_compras)
+
     return {
         "total_ventas": row.total_ventas,
-        "facturado": float(row.facturado),
+        "facturado": facturado_val,
         "por_metodo": {
             "efectivo": float(row.efectivo),
             "transferencia": float(row.transferencia),
@@ -51,6 +70,9 @@ async def resumen_general(
             "fiado": float(row.fiado),
         },
         "deuda_clientes_total": float(deuda_clientes),
+        "total_compras": total_compras_val,
+        "ganancia_estimada": facturado_val - total_compras_val,
+        "deuda_proveedores_total": float(deuda_proveedores),
     }
 
 
