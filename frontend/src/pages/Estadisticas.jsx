@@ -51,11 +51,11 @@ export default function Estadisticas() {
           <h2 className="page-title">Estadísticas</h2>
           <p className="page-sub">Resumen de ventas y rendimiento del negocio</p>
         </div>
-        <div className="flex gap-2">
-          <select id="stat-anio" className="form-select" style={{ width: 100 }} value={anio} onChange={(e) => setAnio(parseInt(e.target.value))}>
-            {[2024, 2025, 2026].map((y) => <option key={y} value={y}>{y}</option>)}
+        <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+          <select className="form-select" style={{ width: 100, minWidth: 0 }} value={anio} onChange={(e) => setAnio(parseInt(e.target.value))}>
+            {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select id="stat-mes" className="form-select" style={{ width: 130 }} value={mes} onChange={(e) => setMes(parseInt(e.target.value))}>
+          <select className="form-select" style={{ width: 130, minWidth: 0 }} value={mes} onChange={(e) => setMes(parseInt(e.target.value))}>
             {["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
               .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
           </select>

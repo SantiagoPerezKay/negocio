@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 from database import get_db
 from models.producto import Producto, Categoria
@@ -103,6 +103,34 @@ async def actualizar_producto(producto_id: int, data: ProductoIn, db: AsyncSessi
     await db.commit()
     await db.refresh(prod)
     return prod
+
+
+@router.delete("/productos/{producto_id}")
+async def eliminar_producto(producto_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Producto).where(Producto.id == producto_id))
+    prod = result.scalar_one_or_none()
+    if not prod:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    prod.activo = False
+    await db.commit()
+    return {"ok": True}
+
+
+@router.delete("/categorias/{categoria_id}")
+async def eliminar_categoria(categoria_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Categoria).where(Categoria.id == categoria_id))
+    cat = result.scalar_one_or_none()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    # Verificar que no tenga productos activos
+    prods = await db.execute(
+        select(func.count(Producto.id)).where(Producto.categoria_id == categoria_id, Producto.activo == True)
+    )
+    if prods.scalar() > 0:
+        raise HTTPException(status_code=400, detail="No se puede eliminar una categoría con productos activos")
+    await db.delete(cat)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.patch("/productos/{producto_id}/ajuste")

@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { stockAPI } from "../api";
-import { Plus, AlertTriangle, Package, Edit2, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, AlertTriangle, Edit2, TrendingUp, Trash2 } from "lucide-react";
+import Modal from "../components/Modal";
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n || 0);
@@ -13,11 +14,14 @@ export default function Stock() {
   const [categorias, setCategorias] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [filtro, setFiltro] = useState({ categoria: "", bajStock: false });
-  const [modal, setModal] = useState(null); // null | "nuevo" | "editar" | "ajuste"
+  const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({});
   const [ajuste, setAjuste] = useState({ cantidad: "", motivo: "" });
   const [saving, setSaving] = useState(false);
+  const [catNombre, setCatNombre] = useState("");
+
+  const cerrarModal = useCallback(() => setModal(null), []);
 
   const cargar = async () => {
     const params = {};
@@ -67,9 +71,7 @@ export default function Stock() {
       else await stockAPI.actualizarProducto(selected.id, data);
       setModal(null);
       cargar();
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const guardarAjuste = async () => {
@@ -79,6 +81,33 @@ export default function Stock() {
     cargar();
   };
 
+  const eliminarProducto = async (p) => {
+    if (!confirm(`¿Desactivar "${p.nombre}"? No aparecerá más en la lista.`)) return;
+    try {
+      await stockAPI.eliminarProducto(p.id);
+      cargar();
+    } catch (e) {
+      alert(e.response?.data?.detail || "Error al eliminar");
+    }
+  };
+
+  const crearCategoria = async () => {
+    if (!catNombre.trim()) return;
+    await stockAPI.crearCategoria({ nombre: catNombre });
+    setCatNombre("");
+    cargar();
+  };
+
+  const eliminarCategoria = async (cat) => {
+    if (!confirm(`¿Eliminar categoría "${cat.nombre}"?`)) return;
+    try {
+      await stockAPI.eliminarCategoria(cat.id);
+      cargar();
+    } catch (e) {
+      alert(e.response?.data?.detail || "Error al eliminar");
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -86,52 +115,43 @@ export default function Stock() {
           <h2 className="page-title">Stock</h2>
           <p className="page-sub">{productos.length} productos · {alertas.length} alertas de stock bajo</p>
         </div>
-        <button id="btn-nuevo-producto" className="btn btn-primary" onClick={abrirNuevo}>
-          <Plus size={16} /> Nuevo producto
-        </button>
+        <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+          <button className="btn btn-ghost" onClick={() => setModal("categorias")}>Categorías</button>
+          <button className="btn btn-primary" onClick={abrirNuevo}>
+            <Plus size={16} /> <span className="btn-label">Nuevo producto</span>
+          </button>
+        </div>
       </div>
 
       {alertas.length > 0 && (
-        <div style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)", borderRadius: "var(--radius)", padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-          <AlertTriangle size={16} style={{ color: "var(--warning)" }} />
-          <span style={{ fontSize: "0.875rem", color: "var(--warning)" }}>
+        <div className="alert-banner alert-warning mb-4">
+          <AlertTriangle size={16} />
+          <span>
             <b>{alertas.length} producto{alertas.length > 1 ? "s" : ""}</b> con stock bajo o agotado:{" "}
             {alertas.map((a) => a.nombre).join(", ")}
           </span>
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="flex gap-4 mb-6">
-        <select id="filtro-categoria" className="form-select" style={{ width: 200 }} value={filtro.categoria} onChange={(e) => setFiltro((p) => ({ ...p, categoria: e.target.value }))}>
+      <div className="flex gap-4 mb-6" style={{ flexWrap: "wrap" }}>
+        <select className="form-select" style={{ width: 200, minWidth: 0 }} value={filtro.categoria} onChange={(e) => setFiltro((p) => ({ ...p, categoria: e.target.value }))}>
           <option value="">Todas las categorías</option>
           {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
         <label className="flex items-center gap-2" style={{ cursor: "pointer", fontSize: "0.875rem", color: "var(--text2)" }}>
-          <input id="filtro-bajo-stock" type="checkbox" checked={filtro.bajStock} onChange={(e) => setFiltro((p) => ({ ...p, bajStock: e.target.checked }))} />
+          <input type="checkbox" checked={filtro.bajStock} onChange={(e) => setFiltro((p) => ({ ...p, bajStock: e.target.checked }))} />
           Solo stock bajo
         </label>
       </div>
 
-      <div className="table-wrap">
+      {/* Tabla desktop */}
+      <div className="table-wrap hide-mobile">
         <table>
           <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Categoría</th>
-              <th>Tipo hoja</th>
-              <th>Precio venta</th>
-              <th>Precio costo</th>
-              <th>Stock</th>
-              <th>Mínimo</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
+            <tr><th>Producto</th><th>Categoría</th><th>Tipo hoja</th><th>P. venta</th><th>P. costo</th><th>Stock</th><th>Mín.</th><th>Estado</th><th>Acciones</th></tr>
           </thead>
           <tbody>
-            {productos.length === 0 && (
-              <tr><td colSpan={9} className="text-center text-muted" style={{ padding: 32 }}>Sin productos</td></tr>
-            )}
+            {productos.length === 0 && <tr><td colSpan={9} className="text-center text-muted" style={{ padding: 32 }}>Sin productos</td></tr>}
             {productos.map((p) => {
               const bajStock = parseFloat(p.stock_actual) <= parseFloat(p.stock_minimo);
               return (
@@ -141,23 +161,14 @@ export default function Stock() {
                   <td>{p.tipo_hoja ? <span className="badge badge-info">{p.tipo_hoja}</span> : "—"}</td>
                   <td className="money text-success">{fmt(p.precio_venta)}</td>
                   <td className="money text-muted">{p.precio_costo ? fmt(p.precio_costo) : "—"}</td>
-                  <td style={{ fontWeight: 700, color: bajStock ? "var(--danger)" : "var(--success)" }}>
-                    {parseFloat(p.stock_actual)} {p.unidad}
-                  </td>
+                  <td style={{ fontWeight: 700, color: bajStock ? "var(--danger)" : "var(--success)" }}>{parseFloat(p.stock_actual)} {p.unidad}</td>
                   <td className="text-muted">{parseFloat(p.stock_minimo)} {p.unidad}</td>
-                  <td>
-                    {bajStock
-                      ? <span className="badge badge-danger">Bajo stock</span>
-                      : <span className="badge badge-success">OK</span>}
-                  </td>
+                  <td>{bajStock ? <span className="badge badge-danger">Bajo stock</span> : <span className="badge badge-success">OK</span>}</td>
                   <td>
                     <div className="flex gap-2">
-                      <button className="btn btn-ghost btn-sm" title="Ajustar stock" onClick={() => abrirAjuste(p)}>
-                        <TrendingUp size={13} />
-                      </button>
-                      <button className="btn btn-ghost btn-sm" title="Editar" onClick={() => abrirEditar(p)}>
-                        <Edit2 size={13} />
-                      </button>
+                      <button className="btn btn-ghost btn-sm" title="Ajustar stock" onClick={() => abrirAjuste(p)}><TrendingUp size={13} /></button>
+                      <button className="btn btn-ghost btn-sm" title="Editar" onClick={() => abrirEditar(p)}><Edit2 size={13} /></button>
+                      <button className="btn btn-danger btn-sm" title="Desactivar" onClick={() => eliminarProducto(p)}><Trash2 size={13} /></button>
                     </div>
                   </td>
                 </tr>
@@ -167,94 +178,131 @@ export default function Stock() {
         </table>
       </div>
 
-      {/* Modal nuevo/editar */}
-      {(modal === "nuevo" || modal === "editar") && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="modal-title">{modal === "nuevo" ? "Nuevo producto" : "Editar producto"}</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div className="form-group">
-                <label className="form-label">Nombre</label>
-                <input id="prod-nombre" className="form-input" value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} />
+      {/* Mobile cards */}
+      <div className="mobile-cards show-mobile">
+        {productos.length === 0 && <p className="text-center text-muted" style={{ padding: 32 }}>Sin productos</p>}
+        {productos.map((p) => {
+          const bajStock = parseFloat(p.stock_actual) <= parseFloat(p.stock_minimo);
+          return (
+            <div key={p.id} className="card card-sm mb-3">
+              <div className="flex justify-between items-center mb-2">
+                <span style={{ fontWeight: 600 }}>{p.nombre}</span>
+                {bajStock ? <span className="badge badge-danger">Bajo stock</span> : <span className="badge badge-success">OK</span>}
               </div>
-              <div className="grid-2">
-                <div className="form-group">
-                  <label className="form-label">Categoría</label>
-                  <select id="prod-categoria" className="form-select" value={form.categoria_id} onChange={(e) => setForm((p) => ({ ...p, categoria_id: e.target.value }))}>
-                    <option value="">Sin categoría</option>
-                    {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Tipo de hoja</label>
-                  <select id="prod-tipo-hoja" className="form-select" value={form.tipo_hoja} onChange={(e) => setForm((p) => ({ ...p, tipo_hoja: e.target.value }))}>
-                    <option value="">N/A</option>
-                    {TIPOS_HOJA.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
+              <div className="grid-2" style={{ fontSize: "0.8rem", marginBottom: 8, gap: 4 }}>
+                <span className="text-muted">Venta: <span className="text-success money">{fmt(p.precio_venta)}</span></span>
+                <span className="text-muted">Stock: <b style={{ color: bajStock ? "var(--danger)" : "var(--success)" }}>{parseFloat(p.stock_actual)}</b> {p.unidad}</span>
               </div>
-              <div className="grid-2">
-                <div className="form-group">
-                  <label className="form-label">Precio venta</label>
-                  <input id="prod-precio-venta" type="number" className="form-input" value={form.precio_venta} onChange={(e) => setForm((p) => ({ ...p, precio_venta: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Precio costo</label>
-                  <input id="prod-precio-costo" type="number" className="form-input" value={form.precio_costo} onChange={(e) => setForm((p) => ({ ...p, precio_costo: e.target.value }))} />
-                </div>
-              </div>
-              <div className="grid-2">
-                <div className="form-group">
-                  <label className="form-label">Stock actual</label>
-                  <input id="prod-stock" type="number" className="form-input" value={form.stock_actual} onChange={(e) => setForm((p) => ({ ...p, stock_actual: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Stock mínimo</label>
-                  <input id="prod-stock-min" type="number" className="form-input" value={form.stock_minimo} onChange={(e) => setForm((p) => ({ ...p, stock_minimo: e.target.value }))} />
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Unidad</label>
-                <select id="prod-unidad" className="form-select" value={form.unidad} onChange={(e) => setForm((p) => ({ ...p, unidad: e.target.value }))}>
-                  {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
+              <div className="flex gap-2">
+                <button className="btn btn-ghost btn-sm" onClick={() => abrirAjuste(p)}><TrendingUp size={13} /> Ajuste</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => abrirEditar(p)}><Edit2 size={13} /></button>
+                <button className="btn btn-danger btn-sm" onClick={() => eliminarProducto(p)}><Trash2 size={13} /></button>
               </div>
             </div>
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
-              <button id="btn-guardar-producto" className="btn btn-primary" onClick={guardar} disabled={saving}>
-                {saving ? "Guardando..." : "Guardar"}
-              </button>
+          );
+        })}
+      </div>
+
+      {/* Modal nuevo/editar */}
+      <Modal open={modal === "nuevo" || modal === "editar"} onClose={cerrarModal} title={modal === "nuevo" ? "Nuevo producto" : "Editar producto"}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="form-group">
+            <label className="form-label">Nombre</label>
+            <input className="form-input" value={form.nombre || ""} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} />
+          </div>
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Categoría</label>
+              <select className="form-select" value={form.categoria_id || ""} onChange={(e) => setForm((p) => ({ ...p, categoria_id: e.target.value }))}>
+                <option value="">Sin categoría</option>
+                {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Tipo de hoja</label>
+              <select className="form-select" value={form.tipo_hoja || ""} onChange={(e) => setForm((p) => ({ ...p, tipo_hoja: e.target.value }))}>
+                <option value="">N/A</option>
+                {TIPOS_HOJA.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
           </div>
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Precio venta</label>
+              <input type="number" className="form-input" value={form.precio_venta || ""} onChange={(e) => setForm((p) => ({ ...p, precio_venta: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Precio costo</label>
+              <input type="number" className="form-input" value={form.precio_costo || ""} onChange={(e) => setForm((p) => ({ ...p, precio_costo: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Stock actual</label>
+              <input type="number" className="form-input" value={form.stock_actual || ""} onChange={(e) => setForm((p) => ({ ...p, stock_actual: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Stock mínimo</label>
+              <input type="number" className="form-input" value={form.stock_minimo || ""} onChange={(e) => setForm((p) => ({ ...p, stock_minimo: e.target.value }))} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Unidad</label>
+            <select className="form-select" value={form.unidad || "unidad"} onChange={(e) => setForm((p) => ({ ...p, unidad: e.target.value }))}>
+              {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
         </div>
-      )}
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={cerrarModal}>Cancelar</button>
+          <button className="btn btn-primary" onClick={guardar} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</button>
+        </div>
+      </Modal>
 
       {/* Modal ajuste stock */}
-      {modal === "ajuste" && selected && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="modal-title">Ajuste de stock</h3>
+      <Modal open={modal === "ajuste" && !!selected} onClose={cerrarModal} title="Ajuste de stock">
+        {selected && (
+          <>
             <p className="text-muted" style={{ marginBottom: 20, fontSize: "0.9rem" }}>
               <b>{selected.nombre}</b> · Stock actual: <b>{parseFloat(selected.stock_actual)} {selected.unidad}</b>
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div className="form-group">
                 <label className="form-label">Cantidad (+entrada / -salida)</label>
-                <input id="ajuste-cantidad" type="number" className="form-input" placeholder="ej: +50 o -10" value={ajuste.cantidad} onChange={(e) => setAjuste((p) => ({ ...p, cantidad: e.target.value }))} />
+                <input type="number" className="form-input" placeholder="ej: +50 o -10" value={ajuste.cantidad} onChange={(e) => setAjuste((p) => ({ ...p, cantidad: e.target.value }))} />
               </div>
               <div className="form-group">
                 <label className="form-label">Motivo (opcional)</label>
-                <input id="ajuste-motivo" className="form-input" placeholder="ej: Compra a proveedor" value={ajuste.motivo} onChange={(e) => setAjuste((p) => ({ ...p, motivo: e.target.value }))} />
+                <input className="form-input" placeholder="ej: Compra a proveedor" value={ajuste.motivo} onChange={(e) => setAjuste((p) => ({ ...p, motivo: e.target.value }))} />
               </div>
             </div>
             <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
-              <button id="btn-confirmar-ajuste" className="btn btn-primary" onClick={guardarAjuste}>Confirmar ajuste</button>
+              <button className="btn btn-ghost" onClick={cerrarModal}>Cancelar</button>
+              <button className="btn btn-primary" onClick={guardarAjuste}>Confirmar ajuste</button>
             </div>
-          </div>
+          </>
+        )}
+      </Modal>
+
+      {/* Modal categorías */}
+      <Modal open={modal === "categorias"} onClose={cerrarModal} title="Gestionar categorías">
+        <div className="flex gap-2 mb-4">
+          <input className="form-input" placeholder="Nueva categoría..." value={catNombre} onChange={(e) => setCatNombre(e.target.value)} onKeyDown={(e) => e.key === "Enter" && crearCategoria()} />
+          <button className="btn btn-primary btn-sm" onClick={crearCategoria}><Plus size={14} /></button>
         </div>
-      )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {categorias.map((cat) => (
+            <div key={cat.id} className="flex justify-between items-center" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+              <span style={{ fontSize: "0.9rem" }}>{cat.nombre}</span>
+              <button className="btn btn-danger btn-sm" onClick={() => eliminarCategoria(cat)}><Trash2 size={12} /></button>
+            </div>
+          ))}
+          {categorias.length === 0 && <p className="text-muted" style={{ fontSize: "0.875rem" }}>Sin categorías</p>}
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={cerrarModal}>Cerrar</button>
+        </div>
+      </Modal>
     </div>
   );
 }

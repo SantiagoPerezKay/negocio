@@ -87,6 +87,19 @@ async def registrar_pago(cliente_id: int, data: PagoIn, db: AsyncSession = Depen
     return {"pago": pago, "deuda_restante": float(nueva_deuda)}
 
 
+@router.delete("/{cliente_id}")
+async def eliminar_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+    c = result.scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    if c.deuda_total > 0:
+        raise HTTPException(status_code=400, detail="No se puede eliminar un cliente con deuda pendiente")
+    await db.delete(c)
+    await db.commit()
+    return {"ok": True}
+
+
 @router.get("/{cliente_id}/pagos")
 async def historial_pagos(cliente_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(

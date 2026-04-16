@@ -175,3 +175,14 @@ async def listar_gastos(caja_id: Optional[int] = None, db: AsyncSession = Depend
         q = q.where(GastoCaja.caja_id == caja_id)
     result = await db.execute(q.order_by(GastoCaja.fecha.desc()))
     return result.scalars().all()
+
+
+@router.delete("/gastos/{gasto_id}")
+async def eliminar_gasto(gasto_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(GastoCaja).where(GastoCaja.id == gasto_id))
+    gasto = result.scalar_one_or_none()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    await db.delete(gasto)
+    await db.commit()
+    return {"ok": True}

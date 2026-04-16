@@ -21,15 +21,18 @@ export const ventasAPI = {
   anular: (id) => api.delete(`/ventas/${id}`),
   crearGasto: (data) => api.post("/ventas/gastos", data),
   listarGastos: (params) => api.get("/ventas/gastos", { params }),
+  eliminarGasto: (id) => api.delete(`/ventas/gastos/${id}`),
 };
 
 // ── Stock ─────────────────────────────────────────────────────────────────────
 export const stockAPI = {
   categorias: () => api.get("/stock/categorias"),
   crearCategoria: (data) => api.post("/stock/categorias", data),
+  eliminarCategoria: (id) => api.delete(`/stock/categorias/${id}`),
   productos: (params) => api.get("/stock/productos", { params }),
   crearProducto: (data) => api.post("/stock/productos", data),
   actualizarProducto: (id, data) => api.put(`/stock/productos/${id}`, data),
+  eliminarProducto: (id) => api.delete(`/stock/productos/${id}`),
   ajustarStock: (id, data) => api.patch(`/stock/productos/${id}/ajuste`, data),
   alertas: () => api.get("/stock/alertas"),
 };
@@ -40,6 +43,7 @@ export const clientesAPI = {
   crear: (data) => api.post("/clientes/", data),
   obtener: (id) => api.get(`/clientes/${id}`),
   actualizar: (id, data) => api.put(`/clientes/${id}`, data),
+  eliminar: (id) => api.delete(`/clientes/${id}`),
   registrarPago: (id, data) => api.post(`/clientes/${id}/pagos`, data),
   historialPagos: (id) => api.get(`/clientes/${id}/pagos`),
 };
@@ -49,6 +53,7 @@ export const proveedoresAPI = {
   listar: () => api.get("/proveedores/"),
   crear: (data) => api.post("/proveedores/", data),
   actualizar: (id, data) => api.put(`/proveedores/${id}`, data),
+  eliminar: (id) => api.delete(`/proveedores/${id}`),
   registrarCompra: (data) => api.post("/proveedores/compras", data),
   listarCompras: (params) => api.get("/proveedores/compras", { params }),
 };

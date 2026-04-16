@@ -62,6 +62,19 @@ async def actualizar_proveedor(proveedor_id: int, data: ProveedorIn, db: AsyncSe
     return p
 
 
+@router.delete("/{proveedor_id}")
+async def eliminar_proveedor(proveedor_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Proveedor).where(Proveedor.id == proveedor_id))
+    p = result.scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    if p.deuda_total > 0:
+        raise HTTPException(status_code=400, detail="No se puede eliminar un proveedor con deuda pendiente")
+    await db.delete(p)
+    await db.commit()
+    return {"ok": True}
+
+
 @router.post("/compras")
 async def registrar_compra(data: CompraIn, db: AsyncSession = Depends(get_db)):
     total = sum(d.cantidad * d.precio_costo for d in data.detalles)
