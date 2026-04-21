@@ -1,12 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import create_tables
+from database import create_tables, AsyncSessionLocal
+from sqlalchemy import select
 from routers import ventas, caja, stock, clientes, proveedores, estadisticas, movimientos
+from routers import auth, presupuestos, devoluciones
 
 app = FastAPI(
     title="Sistema Fotocopiadora/Kiosco",
     description="Backend para gestión de caja, stock, clientes y proveedores",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -17,6 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(ventas.router)
 app.include_router(caja.router)
 app.include_router(stock.router)
@@ -24,13 +27,32 @@ app.include_router(clientes.router)
 app.include_router(proveedores.router)
 app.include_router(estadisticas.router)
 app.include_router(movimientos.router)
+app.include_router(presupuestos.router)
+app.include_router(devoluciones.router)
 
 
 @app.on_event("startup")
 async def startup():
+    # Import all models so SQLAlchemy registers them before create_all
+    import models.usuario, models.venta, models.caja, models.cliente, models.producto, models.proveedor, models.presupuesto, models.devolucion
     await create_tables()
+    # Create default admin if no users exist
+    async with AsyncSessionLocal() as db:
+        from models.usuario import Usuario
+        from routers.auth import get_password_hash
+        result = await db.execute(select(Usuario).limit(1))
+        if not result.scalar_one_or_none():
+            admin = Usuario(
+                username="admin",
+                nombre="Administrador",
+                password_hash=get_password_hash("admin123"),
+                rol="admin",
+                activo=True,
+            )
+            db.add(admin)
+            await db.commit()
 
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "negocio-backend"}
+    return {"status": "ok", "service": "negocio-backend", "version": "2.0.0"}

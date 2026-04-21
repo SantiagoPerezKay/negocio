@@ -33,6 +33,7 @@ export const stockAPI = {
   crearProducto: (data) => api.post("/stock/productos", data),
   actualizarProducto: (id, data) => api.put(`/stock/productos/${id}`, data),
   eliminarProducto: (id) => api.delete(`/stock/productos/${id}`),
+  obtenerPorSku: (sku) => api.get(`/stock/productos/sku/${encodeURIComponent(sku)}`),
   ajustarStock: (id, data) => api.patch(`/stock/productos/${id}/ajuste`, data),
   alertas: () => api.get("/stock/alertas"),
 };
@@ -57,6 +58,31 @@ export const proveedoresAPI = {
   registrarPago: (id, data) => api.post(`/proveedores/${id}/pago`, data),
   registrarCompra: (data) => api.post("/proveedores/compras", data),
   listarCompras: (params) => api.get("/proveedores/compras", { params }),
+};
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+export const authAPI = {
+  login: (formData) => api.post("/auth/login", formData, { headers: { "Content-Type": "application/x-www-form-urlencoded" } }),
+  me: () => api.get("/auth/me"),
+  crearUsuario: (data) => api.post("/auth/usuarios", data),
+  listarUsuarios: () => api.get("/auth/usuarios"),
+  desactivarUsuario: (id) => api.delete(`/auth/usuarios/${id}`),
+  cambiarPassword: (data) => api.post("/auth/cambiar-password", data),
+};
+
+// ── Presupuestos ───────────────────────────────────────────────────────────────
+export const presupuestosAPI = {
+  listar: (params) => api.get("/presupuestos/", { params }),
+  crear: (data) => api.post("/presupuestos/", data),
+  actualizarEstado: (id, estado) => api.put(`/presupuestos/${id}/estado`, null, { params: { estado } }),
+  convertir: (id, caja_id) => api.post(`/presupuestos/${id}/convertir`, null, { params: caja_id ? { caja_id } : {} }),
+  eliminar: (id) => api.delete(`/presupuestos/${id}`),
+};
+
+// ── Devoluciones ───────────────────────────────────────────────────────────────
+export const devolucionesAPI = {
+  listar: () => api.get("/devoluciones/"),
+  crear: (data) => api.post("/devoluciones/", data),
 };
 
 // ── Movimientos ───────────────────────────────────────────────────────────────

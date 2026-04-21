@@ -21,6 +21,7 @@ class Venta(Base):
     notas = Column(Text, nullable=True)
     anulada = Column(Boolean, default=False)
     caja_id = Column(Integer, ForeignKey("caja_aperturas.id"), nullable=True)
+    descuento_monto = Column(Numeric(12, 2), nullable=False, default=0)
 
     cliente = relationship("Cliente", back_populates="ventas")
     detalles = relationship("VentaDetalle", back_populates="venta", cascade="all, delete-orphan")
@@ -36,6 +37,7 @@ class VentaDetalle(Base):
     descripcion = Column(String(300), nullable=True)  # para ítems sin producto registrado
     cantidad = Column(Numeric(10, 2), nullable=False, default=1)
     precio_unitario = Column(Numeric(10, 2), nullable=False, default=0)
+    descuento_porcentaje = Column(Numeric(5, 2), nullable=False, default=0)
     subtotal = Column(Numeric(12, 2), nullable=False, default=0)
 
     venta = relationship("Venta", back_populates="detalles")

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Numeric, DateTime, Boolean, Text, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, Boolean, Text, ForeignKey, func
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -32,6 +32,7 @@ class GastoCaja(Base):
     caja_id = Column(Integer, ForeignKey("caja_aperturas.id"), nullable=True)
     descripcion = Column(Text, nullable=False)
     monto = Column(Numeric(12, 2), nullable=False)
+    categoria = Column(String(100), nullable=True)  # servicios, insumos, sueldos, varios
     fecha = Column(DateTime(timezone=True), server_default=func.now())
 
     caja = relationship("CajaApertura", back_populates="gastos")

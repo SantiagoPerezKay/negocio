@@ -7,6 +7,7 @@ from models.producto import Producto, Categoria
 from pydantic import BaseModel
 from typing import Optional, List
 from decimal import Decimal
+from datetime import date
 
 router = APIRouter(prefix="/api/stock", tags=["stock"])
 
@@ -28,6 +29,7 @@ class ProductoIn(BaseModel):
     stock_actual: Decimal = Decimal("0")
     stock_minimo: Decimal = Decimal("0")
     unidad: str = "unidad"
+    fecha_vencimiento: Optional[date] = None
 
 
 class AjusteStock(BaseModel):
@@ -78,6 +80,19 @@ async def crear_producto(data: ProductoIn, db: AsyncSession = Depends(get_db)):
     db.add(prod)
     await db.commit()
     await db.refresh(prod)
+    return prod
+
+
+@router.get("/productos/sku/{sku}")
+async def obtener_producto_por_sku(sku: str, db: AsyncSession = Depends(get_db)):
+    """Busca un producto por SKU/código exacto. Útil para lectores de código de barras."""
+    result = await db.execute(
+        select(Producto).options(selectinload(Producto.categoria))
+        .where(Producto.codigo == sku, Producto.activo == True)
+    )
+    prod = result.scalar_one_or_none()
+    if not prod:
+        raise HTTPException(status_code=404, detail="Producto no encontrado para ese SKU")
     return prod
 
 

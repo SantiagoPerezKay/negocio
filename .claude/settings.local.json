@@ -16,7 +16,9 @@
       "Bash(node -e \"const fs=require\\('fs'\\);const data=fs.readFileSync\\('C:/Users/santy/.claude/projects/C--Users-santy-Desktop-trabajo-negocio/2627d5aa-c914-4f9b-9a38-48a73e95d0da.jsonl','utf8'\\);const lines=data.split\\(/\\\\r?\\\\n/\\).filter\\(Boolean\\);for\\(let i=100;i<155;i++\\){try{const o=JSON.parse\\(lines[i]\\);const msg=o.message||o;const c=msg.content;if\\(Array.isArray\\(c\\)\\){c.forEach\\(x=>{if\\(x.type==='text'&&x.text.length>50\\)console.log\\('LINE',i,msg.role,x.text.slice\\(0,800\\)\\)}\\)}else if\\(typeof c==='string'&&c.length>50\\){console.log\\('LINE',i,msg.role||o.type,c.slice\\(0,800\\)\\)}}catch\\(e\\){}}\")",
       "Bash(npx vite:*)",
       "Bash(python -c \"from routers import caja, clientes, proveedores, stock, ventas, estadisticas; print\\('All routers import OK'\\)\")",
-      "Bash(python -c \"from routers import caja, clientes, proveedores, stock, ventas, estadisticas, movimientos; print\\('All routers OK'\\)\")"
+      "Bash(python -c \"from routers import caja, clientes, proveedores, stock, ventas, estadisticas, movimientos; print\\('All routers OK'\\)\")",
+      "Bash(python -c \"from routers import caja, clientes, proveedores, stock, ventas, estadisticas, movimientos; print\\('All OK'\\)\")",
+      "Bash(python -c ' *)"
     ]
   }
 }

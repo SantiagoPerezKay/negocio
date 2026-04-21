@@ -237,7 +237,7 @@ export default function Clientes() {
                 <div key={h.id} className="flex justify-between items-center" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: "0.875rem" }}>
                   <div>
                     <span className="badge badge-success" style={{ marginRight: 8 }}>{h.metodo}</span>
-                    {new Date(h.fecha).toLocaleDateString("es-AR")}
+                    {new Date(h.fecha).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                   </div>
                   <span className="money text-success">{fmt(h.monto)}</span>
                 </div>

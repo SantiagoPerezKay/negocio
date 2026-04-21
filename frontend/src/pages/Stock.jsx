@@ -39,14 +39,19 @@ export default function Stock() {
 
   useEffect(() => { cargar(); }, [filtro]);
 
+  const diasParaVencer = (fecha) => {
+    if (!fecha) return null;
+    return Math.ceil((new Date(fecha) - new Date()) / 86400000);
+  };
+
   const abrirNuevo = () => {
-    setForm({ nombre: "", categoria_id: "", tipo_hoja: "", precio_venta: "", precio_costo: "", stock_actual: "0", stock_minimo: "0", unidad: "unidad" });
+    setForm({ nombre: "", codigo: "", categoria_id: "", tipo_hoja: "", precio_venta: "", precio_costo: "", stock_actual: "0", stock_minimo: "0", unidad: "unidad", fecha_vencimiento: "" });
     setModal("nuevo");
   };
 
   const abrirEditar = (p) => {
     setSelected(p);
-    setForm({ nombre: p.nombre, categoria_id: p.categoria_id || "", tipo_hoja: p.tipo_hoja || "", precio_venta: p.precio_venta, precio_costo: p.precio_costo || "", stock_actual: p.stock_actual, stock_minimo: p.stock_minimo, unidad: p.unidad });
+    setForm({ nombre: p.nombre, codigo: p.codigo || "", categoria_id: p.categoria_id || "", tipo_hoja: p.tipo_hoja || "", precio_venta: p.precio_venta, precio_costo: p.precio_costo || "", stock_actual: p.stock_actual, stock_minimo: p.stock_minimo, unidad: p.unidad, fecha_vencimiento: p.fecha_vencimiento || "" });
     setModal("editar");
   };
 
@@ -61,11 +66,14 @@ export default function Stock() {
     try {
       const data = {
         ...form,
+        codigo: form.codigo?.trim() || null,
         categoria_id: form.categoria_id ? parseInt(form.categoria_id) : null,
+        tipo_hoja: form.tipo_hoja || null,
         precio_venta: parseFloat(form.precio_venta) || 0,
         precio_costo: parseFloat(form.precio_costo) || 0,
         stock_actual: parseFloat(form.stock_actual) || 0,
         stock_minimo: parseFloat(form.stock_minimo) || 0,
+        fecha_vencimiento: form.fecha_vencimiento || null,
       };
       if (modal === "nuevo") await stockAPI.crearProducto(data);
       else await stockAPI.actualizarProducto(selected.id, data);
@@ -148,22 +156,34 @@ export default function Stock() {
       <div className="table-wrap hide-mobile">
         <table>
           <thead>
-            <tr><th>Producto</th><th>Categoría</th><th>Tipo hoja</th><th>P. venta</th><th>P. costo</th><th>Stock</th><th>Mín.</th><th>Estado</th><th>Acciones</th></tr>
+            <tr><th>Producto</th><th>SKU</th><th>Categoría</th><th>P. venta</th><th>P. costo</th><th>Stock</th><th>Estado</th><th>Vence</th><th>Acciones</th></tr>
           </thead>
           <tbody>
-            {productos.length === 0 && <tr><td colSpan={9} className="text-center text-muted" style={{ padding: 32 }}>Sin productos</td></tr>}
+            {productos.length === 0 && <tr><td colSpan={10} className="text-center text-muted" style={{ padding: 32 }}>Sin productos</td></tr>}
             {productos.map((p) => {
               const bajStock = parseFloat(p.stock_actual) <= parseFloat(p.stock_minimo);
               return (
                 <tr key={p.id}>
                   <td style={{ fontWeight: 500 }}>{p.nombre}</td>
+                  <td>
+                    {p.codigo
+                      ? <span className="font-mono" style={{ fontSize: "0.8rem", background: "var(--bg3)", padding: "2px 6px", borderRadius: 4, border: "1px solid var(--border)" }}>{p.codigo}</span>
+                      : <span className="text-muted">—</span>}
+                  </td>
                   <td className="text-muted">{p.categoria?.nombre || "—"}</td>
                   <td>{p.tipo_hoja ? <span className="badge badge-info">{p.tipo_hoja}</span> : "—"}</td>
                   <td className="money text-success">{fmt(p.precio_venta)}</td>
                   <td className="money text-muted">{p.precio_costo ? fmt(p.precio_costo) : "—"}</td>
                   <td style={{ fontWeight: 700, color: bajStock ? "var(--danger)" : "var(--success)" }}>{parseFloat(p.stock_actual)} {p.unidad}</td>
-                  <td className="text-muted">{parseFloat(p.stock_minimo)} {p.unidad}</td>
-                  <td>{bajStock ? <span className="badge badge-danger">Bajo stock</span> : <span className="badge badge-success">OK</span>}</td>
+                  <td>{bajStock ? <span className="badge badge-danger">Bajo</span> : <span className="badge badge-success">OK</span>}</td>
+                  <td>{(() => {
+                    const dias = diasParaVencer(p.fecha_vencimiento);
+                    if (dias === null) return <span className="text-muted">—</span>;
+                    if (dias <= 0) return <span className="badge badge-danger">VENCIDO</span>;
+                    if (dias <= 7) return <span className="badge badge-danger">{dias}d</span>;
+                    if (dias <= 30) return <span className="badge badge-warning">{dias}d</span>;
+                    return <span className="text-muted" style={{ fontSize: "0.8rem" }}>{new Date(p.fecha_vencimiento).toLocaleDateString("es-AR")}</span>;
+                  })()}</td>
                   <td>
                     <div className="flex gap-2">
                       <button className="btn btn-ghost btn-sm" title="Ajustar stock" onClick={() => abrirAjuste(p)}><TrendingUp size={13} /></button>
@@ -206,9 +226,20 @@ export default function Stock() {
       {/* Modal nuevo/editar */}
       <Modal open={modal === "nuevo" || modal === "editar"} onClose={cerrarModal} title={modal === "nuevo" ? "Nuevo producto" : "Editar producto"}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div className="form-group">
-            <label className="form-label">Nombre</label>
-            <input className="form-input" value={form.nombre || ""} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} />
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Nombre *</label>
+              <input className="form-input" value={form.nombre || ""} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">SKU / Código de barras</label>
+              <input
+                className="form-input font-mono"
+                placeholder="ej: 7790001234567"
+                value={form.codigo || ""}
+                onChange={(e) => setForm((p) => ({ ...p, codigo: e.target.value.trim() || null }))}
+              />
+            </div>
           </div>
           <div className="grid-2">
             <div className="form-group">
@@ -246,11 +277,17 @@ export default function Stock() {
               <input type="number" className="form-input" value={form.stock_minimo || ""} onChange={(e) => setForm((p) => ({ ...p, stock_minimo: e.target.value }))} />
             </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Unidad</label>
-            <select className="form-select" value={form.unidad || "unidad"} onChange={(e) => setForm((p) => ({ ...p, unidad: e.target.value }))}>
-              {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Unidad</label>
+              <select className="form-select" value={form.unidad || "unidad"} onChange={(e) => setForm((p) => ({ ...p, unidad: e.target.value }))}>
+                {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Fecha de vencimiento</label>
+              <input type="date" className="form-input" value={form.fecha_vencimiento || ""} onChange={(e) => setForm((p) => ({ ...p, fecha_vencimiento: e.target.value || null }))} />
+            </div>
           </div>
         </div>
         <div className="modal-actions">

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, Boolean, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, Numeric, Boolean, ForeignKey, DateTime, Date, func
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -28,6 +28,7 @@ class Producto(Base):
     stock_minimo = Column(Numeric(10, 2), nullable=False, default=0)
     unidad = Column(String(30), nullable=False, default="unidad")  # unidad, hoja, kg, litro
     activo = Column(Boolean, default=True)
+    fecha_vencimiento = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

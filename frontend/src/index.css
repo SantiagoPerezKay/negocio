@@ -510,6 +510,23 @@ tr:hover td { background: var(--bg3); }
   border-bottom: 1px solid var(--border);
 }
 
+/* ── Alert items (dashboard) ──────────────────────────── */
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+.alert-warning { background: var(--warning-bg); border: 1px solid var(--warning); color: var(--warning); }
+.alert-danger  { background: var(--danger-bg);  border: 1px solid var(--danger);  color: var(--danger);  }
+.alert-item:hover { filter: brightness(1.1); }
+
 /* ── Autocomplete ──────────────────────────────────────── */
 .autocomplete-dropdown {
   position: absolute;

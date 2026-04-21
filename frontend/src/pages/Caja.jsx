@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cajaAPI, ventasAPI, stockAPI, clientesAPI } from "../api";
-import { Plus, Trash2, XCircle, CheckCircle, Loader, DollarSign, PlusCircle } from "lucide-react";
+import { Plus, Trash2, XCircle, CheckCircle, Loader, DollarSign, PlusCircle, Printer } from "lucide-react";
 import Modal from "../components/Modal";
+import { imprimirTicket } from "../components/TicketVenta";
+
+// Helper para normalizar texto (quita tildes, minúsculas)
+const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 const METODOS = ["efectivo", "transferencia", "tarjeta"];
+const CATS_GASTO = ["insumos", "servicios", "sueldos", "mantenimiento", "varios"];
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n || 0);
@@ -73,9 +78,12 @@ export default function Caja() {
   const [clienteId, setClienteId] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [descuentoVenta, setDescuentoVenta] = useState("");
   const [showGasto, setShowGasto] = useState(false);
   const [gastoDesc, setGastoDesc] = useState("");
   const [gastoMonto, setGastoMonto] = useState("");
+  const [gastoCat, setGastoCat] = useState("varios");
+  const [lastVenta, setLastVenta] = useState(null);
 
   const [showCierre, setShowCierre] = useState(false);
   const [montoCierre, setMontoCierre] = useState("");
@@ -106,8 +114,17 @@ export default function Caja() {
     clientesAPI.listar().then((r) => setClientes(r.data));
   }, []);
 
-  const totalDetalles = detalles.reduce((s, d) => s + d.cantidad * d.precio_unitario, 0);
+  const totalDetallesBruto = detalles.reduce((s, d) => s + d.cantidad * d.precio_unitario, 0);
+  const descuentoNum = parseFloat(descuentoVenta) || 0;
+  const totalDetalles = Math.max(0, totalDetallesBruto - descuentoNum);
   const totalMetodos = Object.values(metodos).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+
+  // Edición inline de detalles
+  const updateDetalleField = (i, field, val) => {
+    setDetalles((prev) => prev.map((d, j) =>
+      j === i ? { ...d, [field]: parseFloat(val) || 0 } : d
+    ));
+  };
 
   const addDetalleProducto = (prod) => {
     setDetalles((prev) => {
@@ -141,19 +158,59 @@ export default function Caja() {
 
   const removeDetalle = (i) => setDetalles((p) => p.filter((_, j) => j !== i));
 
-  // Autocomplete: filter products as user types
+  // Autocomplete: busca por nombre Y por SKU/código
   const handleDetalleLineChange = (val) => {
     setDetalleLine(val);
-    if (val.trim().length >= 1) {
-      const term = val.toLowerCase().trim();
-      const matches = productos.filter((p) =>
-        p.nombre.toLowerCase().includes(term)
-      ).slice(0, 6);
-      setSuggestions(matches);
+    const trimmed = val.trim();
+    if (trimmed.length >= 1) {
+      const term = norm(trimmed);
+      // Coincidencia exacta de SKU primero
+      const skuExact = productos.find((p) => p.codigo && p.codigo === trimmed);
+      if (skuExact) {
+        setSuggestions([skuExact]);
+      } else {
+        // Busca en nombre (con normalización) y en código (parcial)
+        const matches = productos
+          .filter((p) =>
+            norm(p.nombre).includes(term) ||
+            (p.codigo && p.codigo.toLowerCase().includes(term))
+          )
+          // Prioriza: empieza por el término > contiene el término
+          .sort((a, b) => {
+            const aN = norm(a.nombre).startsWith(term) ? 0 : 1;
+            const bN = norm(b.nombre).startsWith(term) ? 0 : 1;
+            return aN - bN;
+          })
+          .slice(0, 6);
+        setSuggestions(matches);
+      }
       setShowSuggestions(true);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
+    }
+  };
+
+  // Lookup por SKU desde lector de barras (Enter con código numérico puro)
+  const handleDetalleKeyDown = async (e) => {
+    if (e.key === "Enter") {
+      const trimmed = detalleLine.trim();
+      // Si hay sugerencias visibles, tomar la primera
+      if (suggestions.length > 0 && showSuggestions) {
+        selectSuggestion(suggestions[0]);
+        return;
+      }
+      // Si parece un SKU de barras (≥6 dígitos numéricos), buscar en backend
+      if (/^\d{6,}$/.test(trimmed)) {
+        try {
+          const r = await stockAPI.obtenerPorSku(trimmed);
+          selectSuggestion(r.data);
+          return;
+        } catch {
+          // no encontrado, cae a addDetalleLibre
+        }
+      }
+      addDetalleLibre();
     }
   };
 
@@ -216,19 +273,23 @@ export default function Caja() {
 
     setSaving(true);
     try {
-      await ventasAPI.crear({
+      const ventaResp = await ventasAPI.crear({
         detalles: detalles.map(({ producto_id, descripcion, cantidad, precio_unitario }) => ({ producto_id, descripcion, cantidad, precio_unitario })),
         efectivo: totalEfc,
         transferencia: totalTrans,
         tarjeta: totalTarj,
-        seña: 0, // Ya no se usa como moneda independiente, se guarda en efectivo/tarjeta/transf
+        seña: 0,
         fiado: fiadoFinal,
         cliente_id: clienteId ? parseInt(clienteId) : null,
         caja_id: caja.id,
+        descuento_monto: descuentoNum,
       });
+      const ventaCreada = { ...ventaResp.data, detalles, total: totalDetalles || (pagado + fiadoFinal) };
+      setLastVenta(ventaCreada);
       setDetalles([]);
       setMetodos({ efectivo: "", transferencia: "", tarjeta: "" });
       setClienteId("");
+      setDescuentoVenta("");
       await cargarVentas(caja.id);
       await cargarResumen(caja.id);
     } finally { setSaving(false); }
@@ -250,8 +311,8 @@ export default function Caja() {
 
   const guardarGasto = async () => {
     if (!gastoDesc || !gastoMonto) return;
-    await ventasAPI.crearGasto({ descripcion: gastoDesc, monto: parseFloat(gastoMonto), caja_id: caja.id });
-    setGastoDesc(""); setGastoMonto(""); setShowGasto(false);
+    await ventasAPI.crearGasto({ descripcion: gastoDesc, monto: parseFloat(gastoMonto), caja_id: caja.id, categoria: gastoCat });
+    setGastoDesc(""); setGastoMonto(""); setGastoCat("varios"); setShowGasto(false);
     await cargarGastos(caja.id);
     await cargarResumen(caja.id);
   };
@@ -392,15 +453,7 @@ export default function Caja() {
                     placeholder='Buscar producto o escribir libre...'
                     value={detalleLine}
                     onChange={(e) => handleDetalleLineChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        if (suggestions.length > 0 && showSuggestions) {
-                          selectSuggestion(suggestions[0]);
-                        } else {
-                          addDetalleLibre();
-                        }
-                      }
-                    }}
+                    onKeyDown={handleDetalleKeyDown}
                     onFocus={() => { if (detalleLine.trim().length >= 1 && suggestions.length > 0) setShowSuggestions(true); }}
                   />
                   <button className="btn btn-ghost btn-sm" onClick={addDetalleLibre} title="Agregar como texto libre"><Plus size={16} /></button>
@@ -409,8 +462,11 @@ export default function Caja() {
                   <div ref={suggestionsRef} className="autocomplete-dropdown">
                     {suggestions.map((p) => (
                       <button key={p.id} className="autocomplete-item" onClick={() => selectSuggestion(p)}>
-                        <span style={{ fontWeight: 500 }}>{p.nombre}</span>
-                        <span className="money text-success" style={{ fontSize: "0.8rem" }}>{fmt(p.precio_venta)}</span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "flex-start" }}>
+                          <span style={{ fontWeight: 500 }}>{p.nombre}</span>
+                          {p.codigo && <span className="font-mono text-muted" style={{ fontSize: "0.72rem" }}>SKU: {p.codigo}</span>}
+                        </div>
+                        <span className="money text-success" style={{ fontSize: "0.85rem", whiteSpace: "nowrap" }}>{fmt(p.precio_venta)}</span>
                       </button>
                     ))}
                     {detalleLine.trim().length >= 2 && (
@@ -444,18 +500,30 @@ export default function Caja() {
             {detalles.length > 0 && (
               <div className="mb-4">
                 {detalles.map((d, i) => (
-                  <div key={i} className="flex items-center justify-between" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)", fontSize: "0.85rem" }}>
-                    <span>{d.cantidad > 1 ? `${d.cantidad}x ` : ""}{d.descripcion}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="money">{fmt(d.cantidad * d.precio_unitario)}</span>
-                      <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px" }} onClick={() => removeDetalle(i)}><Trash2 size={12} /></button>
+                  <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid var(--border)", display: "grid", gridTemplateColumns: "1fr auto auto auto", gap: 6, alignItems: "center", fontSize: "0.82rem" }}>
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.descripcion}</span>
+                    <input type="number" className="form-input" style={{ width: 52, padding: "3px 6px", fontSize: "0.78rem" }} value={d.cantidad} onChange={(e) => updateDetalleField(i, "cantidad", e.target.value)} title="Cantidad" />
+                    <input type="number" className="form-input" style={{ width: 76, padding: "3px 6px", fontSize: "0.78rem" }} value={d.precio_unitario} onChange={(e) => updateDetalleField(i, "precio_unitario", e.target.value)} title="Precio" />
+                    <div className="flex items-center gap-1">
+                      <span className="money" style={{ minWidth: 60, textAlign: "right" }}>{fmt(d.cantidad * d.precio_unitario)}</span>
+                      <button className="btn btn-ghost btn-sm" style={{ padding: "2px 5px" }} onClick={() => removeDetalle(i)}><Trash2 size={11} /></button>
                     </div>
                   </div>
                 ))}
-                <div className="flex justify-between" style={{ marginTop: 8, fontWeight: 700 }}>
-                  <span>Subtotal</span>
-                  <span className="money text-success">{fmt(totalDetalles)}</span>
+                <div className="flex justify-between" style={{ marginTop: 8, fontSize: "0.85rem" }}>
+                  <span className="text-muted">Subtotal</span>
+                  <span className="money">{fmt(totalDetallesBruto)}</span>
                 </div>
+                <div className="form-group" style={{ marginTop: 8 }}>
+                  <label className="form-label">Descuento ($)</label>
+                  <input type="number" className="form-input" placeholder="0" value={descuentoVenta} onChange={(e) => setDescuentoVenta(e.target.value)} style={{ fontSize: "0.85rem" }} />
+                </div>
+                {descuentoNum > 0 && (
+                  <div className="flex justify-between" style={{ marginTop: 6, fontWeight: 700 }}>
+                    <span>Total con descuento</span>
+                    <span className="money text-success">{fmt(totalDetalles)}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -505,6 +573,27 @@ export default function Caja() {
         </div>
       </div>
 
+      {/* Toast: última venta + ticket */}
+      {lastVenta && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 500,
+          background: "var(--bg2)", border: "1px solid var(--success)",
+          borderRadius: "var(--radius)", padding: "14px 18px",
+          boxShadow: "var(--shadow)", display: "flex", alignItems: "center", gap: 12,
+          animation: "slideUp 0.2s ease",
+        }}>
+          <CheckCircle size={18} style={{ color: "var(--success)", flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>Venta registrada ✓</div>
+            <div className="text-muted" style={{ fontSize: "0.75rem" }}>{fmt(lastVenta.total)}</div>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => imprimirTicket(lastVenta)} title="Imprimir ticket">
+            <Printer size={14} /> Ticket
+          </button>
+          <button className="btn btn-ghost btn-sm" style={{ padding: "4px 8px" }} onClick={() => setLastVenta(null)}>✕</button>
+        </div>
+      )}
+
       {/* Modal gasto */}
       <Modal open={showGasto} onClose={cerrarGasto} title="Registrar gasto">
         <div className="flex-col flex gap-4">
@@ -512,9 +601,17 @@ export default function Caja() {
             <label className="form-label">Descripción</label>
             <input className="form-input" placeholder="Ej: Papel resma, limpieza..." value={gastoDesc} onChange={(e) => setGastoDesc(e.target.value)} />
           </div>
-          <div className="form-group">
-            <label className="form-label">Monto</label>
-            <input type="number" className="form-input" placeholder="$" value={gastoMonto} onChange={(e) => setGastoMonto(e.target.value)} />
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Monto</label>
+              <input type="number" className="form-input" placeholder="$" value={gastoMonto} onChange={(e) => setGastoMonto(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Categoría</label>
+              <select className="form-select" value={gastoCat} onChange={(e) => setGastoCat(e.target.value)}>
+                {CATS_GASTO.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
         </div>
         <div className="modal-actions">
